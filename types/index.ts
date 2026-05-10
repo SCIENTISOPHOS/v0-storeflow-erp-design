@@ -73,9 +73,13 @@ export interface Product {
   min_stock: number
   description: string | null
   is_active: boolean
+  parent_product_id: string | null
   created_at: string
   updated_at: string
 }
+
+// Default divisibility unit for splitting sacs (price rounding step in FCFA)
+export const SAC_DIVISIBILITY = 500
 
 export interface Client {
   id: string

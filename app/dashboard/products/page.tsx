@@ -6,16 +6,20 @@ import { useAuth } from "@/contexts/AuthContext"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { ProductTable } from "@/components/products/product-table"
 import { ProductForm } from "@/components/products/product-form"
+import { SplitSacDialog } from "@/components/products/split-sac-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Product, ProductInput } from "@/types"
 
 export default function ProductsPage() {
-  const { products, loading, addProduct, updateProduct, deleteProduct, adjustStock } = useProducts()
+  const { products, loading, addProduct, updateProduct, deleteProduct, adjustStock, splitSac } =
+    useProducts()
   const { isAdmin } = useAuth()
   const [formOpen, setFormOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [splitOpen, setSplitOpen] = useState(false)
+  const [splittingSac, setSplittingSac] = useState<Product | null>(null)
 
   const handleSubmit = async (data: ProductInput) => {
     try {
@@ -60,6 +64,26 @@ export default function ProductsPage() {
     if (!open) setEditingProduct(null)
   }
 
+  const handleOpenSplit = (product: Product) => {
+    setSplittingSac(product)
+    setSplitOpen(true)
+  }
+
+  const handleSplitOpenChange = (open: boolean) => {
+    setSplitOpen(open)
+    if (!open) setSplittingSac(null)
+  }
+
+  const handleSplitConfirm = async (sacId: string, divisibility: number) => {
+    try {
+      await splitSac(sacId, divisibility)
+      toast.success("Sac coupé: 2 demi-sacs ajoutés au stock")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erreur lors de la coupe du sac")
+      throw error
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -89,6 +113,7 @@ export default function ProductsPage() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onAdjustStock={handleAdjustStock}
+        onSplitSac={handleOpenSplit}
       />
 
       <ProductForm
@@ -96,6 +121,13 @@ export default function ProductsPage() {
         onOpenChange={handleOpenChange}
         product={editingProduct}
         onSubmit={handleSubmit}
+      />
+
+      <SplitSacDialog
+        open={splitOpen}
+        onOpenChange={handleSplitOpenChange}
+        sac={splittingSac}
+        onConfirm={handleSplitConfirm}
       />
     </div>
   )

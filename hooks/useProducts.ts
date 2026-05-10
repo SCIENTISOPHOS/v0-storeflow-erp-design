@@ -65,6 +65,15 @@ export function useProducts() {
     if (error) throw new Error(error.message)
   }
 
+  const splitSac = async (sacId: string, divisibility = 500) => {
+    const { data, error } = await supabase.rpc("split_sac", {
+      p_sac_id: sacId,
+      p_divisibility: divisibility,
+    })
+    if (error) throw new Error(error.message)
+    return data as string
+  }
+
   return {
     products,
     loading,
@@ -73,6 +82,7 @@ export function useProducts() {
     updateProduct,
     deleteProduct,
     adjustStock,
+    splitSac,
     refetch: fetchProducts,
   }
 }

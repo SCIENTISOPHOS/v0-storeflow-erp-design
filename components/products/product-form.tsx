@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { Loader2 } from "lucide-react"
 import type { Product, ProductInput, ProductType } from "@/types"
 
@@ -170,6 +171,18 @@ export function ProductForm({ open, onOpenChange, product, onSubmit }: ProductFo
               onChange={(e) => setFormData({ ...formData, price: Number.parseFloat(e.target.value) || 0 })}
               required
               disabled={loading || (!isAdmin && !!product)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Description (optionnel)</Label>
+            <Textarea
+              id="description"
+              value={formData.description ?? ""}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Notes ou caractéristiques du produit"
+              rows={3}
+              disabled={loading}
             />
           </div>
 

@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { MoreHorizontal, Pencil, Trash2, Plus, Minus, Search } from "lucide-react"
+import { MoreHorizontal, Pencil, Trash2, Plus, Minus, Search, Scissors } from "lucide-react"
 import { type Product, PRODUCT_TYPE_LABELS, type ProductType } from "@/types"
 
 interface ProductTableProps {
@@ -37,9 +37,10 @@ interface ProductTableProps {
   onEdit: (product: Product) => void
   onDelete: (id: string) => Promise<void>
   onAdjustStock: (id: string, newQuantity: number) => Promise<void>
+  onSplitSac: (product: Product) => void
 }
 
-export function ProductTable({ products, onEdit, onDelete, onAdjustStock }: ProductTableProps) {
+export function ProductTable({ products, onEdit, onDelete, onAdjustStock, onSplitSac }: ProductTableProps) {
   const { isAdmin } = useAuth()
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState<ProductType | "all">("all")
@@ -178,6 +179,15 @@ export function ProductTable({ products, onEdit, onDelete, onAdjustStock }: Prod
                             <Pencil className="mr-2 h-4 w-4" />
                             Modifier
                           </DropdownMenuItem>
+                          {product.type === "sac" && (
+                            <DropdownMenuItem
+                              onClick={() => onSplitSac(product)}
+                              disabled={product.quantity < 1}
+                            >
+                              <Scissors className="mr-2 h-4 w-4" />
+                              Couper un sac
+                            </DropdownMenuItem>
+                          )}
                           {isAdmin && (
                             <DropdownMenuItem
                               onClick={() => setDeleteId(product.id)}
