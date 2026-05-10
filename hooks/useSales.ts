@@ -1,187 +1,100 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import { 
-  collection, 
-  onSnapshot, 
-  doc, 
-  addDoc,
-  updateDoc,
-  runTransaction,
-  serverTimestamp,
-  query,
-  orderBy,
-  limit,
-  where,
-  Timestamp
-} from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { useAuth } from '@/contexts/AuthContext'
-import type { Sale, SaleItem, CartItem, Client, PaymentType, AuditAction } from '@/types'
+import { useEffect, useState, useCallback } from "react"
+import { createClient } from "@/lib/supabase/client"
+import type { SaleWithItems, CartItem, PaymentMethod } from "@/types"
 
-export function useSales() {
-  const { user } = useAuth()
-  const [sales, setSales] = useState<Sale[]>([])
+interface CreateSaleParams {
+  clientId: string | null
+  paymentMethod: PaymentMethod
+  items: CartItem[]
+  discount?: number
+  amountPaid?: number
+  notes?: string
+}
+
+export function useSales(limit = 100) {
+  const [sales, setSales] = useState<SaleWithItems[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  const fetchSales = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("sales")
+      .select("*, sale_items(*), clients(name), profiles(full_name)")
+      .order("created_at", { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      setError(error.message)
+    } else {
+      setSales((data ?? []) as unknown as SaleWithItems[])
+      setError(null)
+    }
+    setLoading(false)
+  }, [supabase, limit])
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'sales'), 
-      orderBy('timestamp', 'desc'),
-      limit(100)
+    fetchSales()
+
+    const channel = supabase
+      .channel("sales-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "sales" }, () => {
+        fetchSales()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, fetchSales])
+
+  const createSale = async (params: CreateSaleParams): Promise<string> => {
+    const subtotal = params.items.reduce(
+      (sum, item) => sum + Number(item.product.price) * item.quantity,
+      0,
     )
-    
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const salesData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate() || new Date(),
-        })) as Sale[]
-        
-        setSales(salesData)
-        setLoading(false)
-      },
-      (err) => {
-        console.error('Error fetching sales:', err)
-        setError('Erreur lors du chargement des ventes')
-        setLoading(false)
-      }
-    )
+    const discount = params.discount ?? 0
+    const total = subtotal - discount
+    const amountPaid = params.paymentMethod === "cash" ? total : (params.amountPaid ?? 0)
 
-    return () => unsubscribe()
-  }, [])
-
-  const createSale = async (
-    cart: CartItem[],
-    paymentType: PaymentType,
-    client: Client | null
-  ): Promise<string> => {
-    if (!user) {
-      throw new Error('Utilisateur non connecté')
-    }
-
-    if (cart.length === 0) {
-      throw new Error('Le panier est vide')
-    }
-
-    // Calculate total
-    const totalAmount = cart.reduce(
-      (acc, item) => acc + item.product.price * item.quantity, 
-      0
-    )
-
-    // Validate credit sale
-    if (paymentType === 'Crédit') {
-      if (!client) {
-        throw new Error('Un client doit être sélectionné pour une vente à crédit')
-      }
-
-      // Check credit limit
-      const newBalance = client.creditBalance + totalAmount
-      if (newBalance > client.creditLimit) {
-        throw new Error(
-          `Crédit refusé: Le solde après vente (${newBalance.toLocaleString('fr-FR')} FCFA) ` +
-          `dépasserait le plafond de ${client.creditLimit.toLocaleString('fr-FR')} FCFA`
-        )
-      }
-    }
-
-    // Validate stock for all items
-    for (const item of cart) {
-      if (item.quantity > item.product.qty) {
-        throw new Error(
-          `Stock insuffisant pour "${item.product.name}": ` +
-          `${item.product.qty} disponible(s), ${item.quantity} demandé(s)`
-        )
-      }
-    }
-
-    // Create sale items
-    const items: SaleItem[] = cart.map((item) => ({
-      productId: item.product.id,
-      productName: item.product.name,
-      productType: item.product.type,
+    const itemsPayload = params.items.map((item) => ({
+      product_id: item.product.id,
+      product_name: item.product.name,
       quantity: item.quantity,
-      unitPrice: item.product.price,
-      totalPrice: item.product.price * item.quantity,
+      unit_price: Number(item.product.price),
+      total: Number(item.product.price) * item.quantity,
     }))
 
-    // Use transaction to ensure atomicity
-    const saleId = await runTransaction(db, async (transaction) => {
-      // 1. Create the sale document
-      const saleRef = doc(collection(db, 'sales'))
-      const saleData = {
-        clientId: client?.id || null,
-        clientName: client?.name || 'ANONYME',
-        items,
-        totalAmount,
-        paymentType,
-        userId: user.id,
-        userName: user.name,
-        timestamp: serverTimestamp(),
-      }
-      transaction.set(saleRef, saleData)
-
-      // 2. Update product quantities
-      for (const item of cart) {
-        const productRef = doc(db, 'products', item.product.id)
-        transaction.update(productRef, {
-          qty: item.product.qty - item.quantity,
-          updatedAt: serverTimestamp(),
-        })
-      }
-
-      // 3. Update client credit balance (if credit sale)
-      if (paymentType === 'Crédit' && client) {
-        const clientRef = doc(db, 'clients', client.id)
-        transaction.update(clientRef, {
-          creditBalance: client.creditBalance + totalAmount,
-          updatedAt: serverTimestamp(),
-        })
-      }
-
-      // 4. Create audit log
-      const auditRef = doc(collection(db, 'audit_logs'))
-      transaction.set(auditRef, {
-        action: 'SALE_CREATED' as AuditAction,
-        userId: user.id,
-        userName: user.name,
-        targetType: 'sale',
-        targetId: saleRef.id,
-        details: {
-          clientId: client?.id || null,
-          clientName: client?.name || 'ANONYME',
-          totalAmount,
-          paymentType,
-          itemCount: items.length,
-        },
-        timestamp: serverTimestamp(),
-      })
-
-      return saleRef.id
+    const { data, error } = await supabase.rpc("create_sale", {
+      p_client_id: params.clientId,
+      p_payment_method: params.paymentMethod,
+      p_subtotal: subtotal,
+      p_discount: discount,
+      p_total: total,
+      p_amount_paid: amountPaid,
+      p_notes: params.notes ?? null,
+      p_items: itemsPayload,
     })
 
-    return saleId
+    if (error) throw new Error(error.message)
+    return data as string
   }
 
+  // Helpers for dashboard
   const getTodaySales = () => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    return sales.filter(sale => sale.timestamp >= today)
+    return sales.filter((sale) => new Date(sale.created_at) >= today)
   }
 
-  const getTodayTotal = () => {
-    return getTodaySales().reduce((acc, sale) => acc + sale.totalAmount, 0)
-  }
+  const getTodayTotal = () => getTodaySales().reduce((acc, sale) => acc + Number(sale.total), 0)
 
-  const getTodayCashTotal = () => {
-    return getTodaySales()
-      .filter(sale => sale.paymentType === 'Espèces')
-      .reduce((acc, sale) => acc + sale.totalAmount, 0)
-  }
+  const getTodayCashTotal = () =>
+    getTodaySales()
+      .filter((s) => s.payment_method === "cash")
+      .reduce((acc, sale) => acc + Number(sale.total), 0)
 
   return {
     sales,
@@ -191,5 +104,6 @@ export function useSales() {
     getTodaySales,
     getTodayTotal,
     getTodayCashTotal,
+    refetch: fetchSales,
   }
 }

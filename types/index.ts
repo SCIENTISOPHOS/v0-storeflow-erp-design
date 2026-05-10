@@ -22,6 +22,47 @@ export interface Profile {
   updated_at: string
 }
 
+// Alias for compatibility
+export type UserProfile = Profile
+
+// Inputs
+export interface ProductInput {
+  name: string
+  type: ProductType
+  sku: string
+  price: number
+  quantity: number
+  min_stock?: number
+  description?: string | null
+  is_active?: boolean
+}
+
+export interface ClientInput {
+  name: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  credit_limit: number
+  notes?: string | null
+}
+
+// Sale with relations expanded (used in queries with select)
+export interface SaleWithItems {
+  id: string
+  client_id: string | null
+  user_id: string
+  payment_method: PaymentMethod
+  subtotal: number
+  discount: number
+  total: number
+  amount_paid: number
+  notes: string | null
+  created_at: string
+  sale_items: SaleItem[]
+  clients?: { name: string } | null
+  profiles?: { full_name: string | null } | null
+}
+
 export interface Product {
   id: string
   name: string

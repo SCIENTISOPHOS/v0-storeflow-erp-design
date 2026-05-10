@@ -2,20 +2,32 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Package, AlertCircle, Loader2 } from "lucide-react"
+import type { UserRole } from "@/types"
 
-export default function LoginPage() {
+export default function SignUpPage() {
+  const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [role, setRole] = useState<UserRole>("vendeur")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
+  const { signUp } = useAuth()
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,16 +35,10 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await signIn(email, password)
+      await signUp(email, password, fullName, role)
+      router.push("/sign-up-success")
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Une erreur est survenue"
-      if (message.toLowerCase().includes("invalid") || message.toLowerCase().includes("credentials")) {
-        setError("Email ou mot de passe incorrect")
-      } else if (message.toLowerCase().includes("email not confirmed")) {
-        setError("Veuillez confirmer votre email avant de vous connecter")
-      } else {
-        setError(message)
-      }
+      setError(err instanceof Error ? err.message : "Une erreur est survenue")
     } finally {
       setLoading(false)
     }
@@ -47,8 +53,8 @@ export default function LoginPage() {
               <Package className="w-8 h-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">StoreFlow</CardTitle>
-          <CardDescription>Connectez-vous pour accéder à votre espace de gestion</CardDescription>
+          <CardTitle className="text-2xl font-bold">Créer un compte</CardTitle>
+          <CardDescription>Inscrivez-vous pour gérer votre commerce</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -58,6 +64,18 @@ export default function LoginPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Nom complet</Label>
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Jean Dupont"
+                required
+                disabled={loading}
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -77,7 +95,7 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Votre mot de passe"
+                placeholder="Au moins 6 caractères"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -86,22 +104,35 @@ export default function LoginPage() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="role">Rôle</Label>
+              <Select value={role} onValueChange={(v) => setRole(v as UserRole)} disabled={loading}>
+                <SelectTrigger id="role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vendeur">Vendeur</SelectItem>
+                  <SelectItem value="admin">Administrateur</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Connexion...
+                  Création...
                 </>
               ) : (
-                "Se connecter"
+                "Créer le compte"
               )}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Pas encore de compte?{" "}
-            <Link href="/sign-up" className="text-primary hover:underline font-medium">
-              Créer un compte
+            Déjà inscrit?{" "}
+            <Link href="/login" className="text-primary hover:underline font-medium">
+              Se connecter
             </Link>
           </p>
         </CardContent>

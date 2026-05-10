@@ -1,96 +1,68 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import { 
-  collection, 
-  onSnapshot, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc,
-  serverTimestamp,
-  query,
-  orderBy
-} from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import type { Product, ProductType } from '@/types'
+import { useEffect, useState, useCallback } from "react"
+import { createClient } from "@/lib/supabase/client"
+import type { Product, ProductInput } from "@/types"
 
 export function useProducts() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  const fetchProducts = useCallback(async () => {
+    const { data, error } = await supabase.from("products").select("*").order("name", { ascending: true })
+
+    if (error) {
+      setError(error.message)
+    } else {
+      setProducts((data ?? []) as Product[])
+      setError(null)
+    }
+    setLoading(false)
+  }, [supabase])
 
   useEffect(() => {
-    const q = query(collection(db, 'products'), orderBy('name'))
-    
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const productsData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-        })) as Product[]
-        
-        setProducts(productsData)
-        setLoading(false)
-      },
-      (err) => {
-        console.error('Error fetching products:', err)
-        setError('Erreur lors du chargement des produits')
-        setLoading(false)
-      }
-    )
+    fetchProducts()
 
-    return () => unsubscribe()
-  }, [])
-
-  const addProduct = async (data: {
-    name: string
-    type: ProductType
-    qty: number
-    price: number
-  }) => {
-    try {
-      await addDoc(collection(db, 'products'), {
-        ...data,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+    const channel = supabase
+      .channel("products-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        fetchProducts()
       })
-    } catch (err) {
-      console.error('Error adding product:', err)
-      throw new Error('Erreur lors de l\'ajout du produit')
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
+  }, [supabase, fetchProducts])
+
+  const addProduct = async (input: ProductInput) => {
+    const { data, error } = await supabase.from("products").insert(input).select().single()
+    if (error) throw new Error(error.message)
+    return data as Product
   }
 
-  const updateProduct = async (id: string, data: Partial<Product>) => {
-    try {
-      const productRef = doc(db, 'products', id)
-      await updateDoc(productRef, {
-        ...data,
-        updatedAt: serverTimestamp(),
-      })
-    } catch (err) {
-      console.error('Error updating product:', err)
-      throw new Error('Erreur lors de la mise à jour du produit')
-    }
+  const updateProduct = async (id: string, input: Partial<ProductInput>) => {
+    const { error } = await supabase
+      .from("products")
+      .update({ ...input, updated_at: new Date().toISOString() })
+      .eq("id", id)
+    if (error) throw new Error(error.message)
   }
 
   const deleteProduct = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'products', id))
-    } catch (err) {
-      console.error('Error deleting product:', err)
-      throw new Error('Erreur lors de la suppression du produit')
-    }
+    const { error } = await supabase.from("products").delete().eq("id", id)
+    if (error) throw new Error(error.message)
   }
 
-  const updateStock = async (id: string, newQty: number) => {
-    if (newQty < 0) {
-      throw new Error('La quantité ne peut pas être négative')
-    }
-    await updateProduct(id, { qty: newQty })
+  const adjustStock = async (id: string, newQuantity: number) => {
+    if (newQuantity < 0) throw new Error("La quantite ne peut pas etre negative")
+    const { error } = await supabase
+      .from("products")
+      .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
+      .eq("id", id)
+    if (error) throw new Error(error.message)
   }
 
   return {
@@ -100,6 +72,7 @@ export function useProducts() {
     addProduct,
     updateProduct,
     deleteProduct,
-    updateStock,
+    adjustStock,
+    refetch: fetchProducts,
   }
 }

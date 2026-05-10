@@ -1,40 +1,37 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { useClients } from '@/hooks/useClients'
-import { DashboardHeader } from '@/components/dashboard/header'
-import { ClientTable } from '@/components/clients/client-table'
-import { ClientForm } from '@/components/clients/client-form'
-import { PaymentForm } from '@/components/clients/payment-form'
-import { Button } from '@/components/ui/button'
-import { Plus, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
-import type { Client } from '@/types'
+import { useState } from "react"
+import { useClients } from "@/hooks/useClients"
+import { DashboardHeader } from "@/components/dashboard/header"
+import { ClientTable } from "@/components/clients/client-table"
+import { ClientForm } from "@/components/clients/client-form"
+import { PaymentForm } from "@/components/clients/payment-form"
+import { Button } from "@/components/ui/button"
+import { Plus, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import type { Client, ClientInput } from "@/types"
 
 export default function ClientsPage() {
-  const { clients, loading, addClient, updateClient, deleteClient, receivePayment } = useClients()
+  const { clients, loading, addClient, updateClient, deleteClient, recordPayment, toggleBlock } =
+    useClients()
   const [formOpen, setFormOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [payingClient, setPayingClient] = useState<Client | null>(null)
 
-  const handleSubmit = async (data: {
-    name: string
-    phone1: string
-    phone2?: string
-    creditLimit: number
-  }) => {
+  const handleSubmit = async (data: ClientInput) => {
     try {
       if (editingClient) {
         await updateClient(editingClient.id, data)
-        toast.success('Client modifié avec succès')
+        toast.success("Client modifié avec succès")
       } else {
         await addClient(data)
-        toast.success('Client ajouté avec succès')
+        toast.success("Client ajouté avec succès")
       }
       setEditingClient(null)
     } catch (error) {
-      toast.error('Une erreur est survenue')
+      toast.error(error instanceof Error ? error.message : "Une erreur est survenue")
+      throw error
     }
   }
 
@@ -46,9 +43,9 @@ export default function ClientsPage() {
   const handleDelete = async (id: string) => {
     try {
       await deleteClient(id)
-      toast.success('Client supprimé avec succès')
+      toast.success("Client supprimé avec succès")
     } catch (error) {
-      toast.error('Erreur lors de la suppression')
+      toast.error(error instanceof Error ? error.message : "Erreur lors de la suppression")
     }
   }
 
@@ -57,23 +54,31 @@ export default function ClientsPage() {
     setPaymentOpen(true)
   }
 
-  const handlePaymentSubmit = async (clientId: string, amount: number) => {
+  const handlePaymentSubmit = async (clientId: string, amount: number, notes?: string) => {
     try {
-      await receivePayment(clientId, amount)
-      toast.success(`Paiement de ${amount.toLocaleString('fr-FR')} FCFA encaissé`)
+      await recordPayment(clientId, amount, notes)
+      toast.success(`Paiement de ${amount.toLocaleString("fr-FR")} FCFA encaissé`)
     } catch (error) {
-      toast.error('Erreur lors de l\'encaissement')
+      toast.error(error instanceof Error ? error.message : "Erreur lors de l'encaissement")
+      throw error
+    }
+  }
+
+  const handleToggleBlock = async (id: string, isBlocked: boolean) => {
+    try {
+      await toggleBlock(id, isBlocked)
+      toast.success(isBlocked ? "Client bloqué" : "Client débloqué")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erreur")
     }
   }
 
   const handleFormOpenChange = (open: boolean) => {
     setFormOpen(open)
-    if (!open) {
-      setEditingClient(null)
-    }
+    if (!open) setEditingClient(null)
   }
 
-  const totalDebt = clients.reduce((acc, c) => acc + c.creditBalance, 0)
+  const totalDebt = clients.reduce((acc, c) => acc + Number(c.current_balance), 0)
 
   if (loading) {
     return (
@@ -85,9 +90,9 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader 
-        title="Gestion des clients" 
-        description={`${clients.length} clients | Créances: ${totalDebt.toLocaleString('fr-FR')} FCFA`}
+      <DashboardHeader
+        title="Gestion des clients"
+        description={`${clients.length} clients · Créances: ${totalDebt.toLocaleString("fr-FR")} FCFA`}
       >
         <Button onClick={() => setFormOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -100,6 +105,7 @@ export default function ClientsPage() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onPayment={handlePayment}
+        onToggleBlock={handleToggleBlock}
       />
 
       <ClientForm

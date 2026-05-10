@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useEffect, useState } from "react"
+import { useAuth } from "@/contexts/AuthContext"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -12,49 +12,59 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
-import type { Product, ProductType } from '@/types'
+} from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2 } from "lucide-react"
+import type { Product, ProductInput, ProductType } from "@/types"
 
 interface ProductFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   product?: Product | null
-  onSubmit: (data: {
-    name: string
-    type: ProductType
-    qty: number
-    price: number
-  }) => Promise<void>
+  onSubmit: (data: ProductInput) => Promise<void>
+}
+
+const emptyForm: ProductInput = {
+  name: "",
+  type: "sac",
+  sku: "",
+  price: 0,
+  quantity: 0,
+  min_stock: 5,
+  description: "",
+  is_active: true,
 }
 
 export function ProductForm({ open, onOpenChange, product, onSubmit }: ProductFormProps) {
   const { isAdmin } = useAuth()
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    name: product?.name || '',
-    type: product?.type || 'Sac' as ProductType,
-    qty: product?.qty || 0,
-    price: product?.price || 0,
-  })
+  const [formData, setFormData] = useState<ProductInput>(emptyForm)
+
+  useEffect(() => {
+    if (product) {
+      setFormData({
+        name: product.name,
+        type: product.type,
+        sku: product.sku,
+        price: Number(product.price),
+        quantity: product.quantity,
+        min_stock: product.min_stock,
+        description: product.description ?? "",
+        is_active: product.is_active,
+      })
+    } else {
+      setFormData(emptyForm)
+    }
+  }, [product, open])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-
     try {
       await onSubmit(formData)
       onOpenChange(false)
-      setFormData({ name: '', type: 'Sac', qty: 0, price: 0 })
     } catch (error) {
-      console.error('Error submitting product:', error)
+      console.error("Error submitting product:", error)
     } finally {
       setLoading(false)
     }
@@ -64,13 +74,11 @@ export function ProductForm({ open, onOpenChange, product, onSubmit }: ProductFo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {product ? 'Modifier le produit' : 'Ajouter un produit'}
-          </DialogTitle>
+          <DialogTitle>{product ? "Modifier le produit" : "Ajouter un produit"}</DialogTitle>
           <DialogDescription>
-            {product 
-              ? 'Modifiez les informations du produit' 
-              : 'Remplissez les informations du nouveau produit'}
+            {product
+              ? "Modifiez les informations du produit"
+              : "Remplissez les informations du nouveau produit"}
           </DialogDescription>
         </DialogHeader>
 
@@ -87,36 +95,61 @@ export function ProductForm({ open, onOpenChange, product, onSubmit }: ProductFo
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="type">Type</Label>
-            <Select
-              value={formData.type}
-              onValueChange={(value: ProductType) => 
-                setFormData({ ...formData, type: value })
-              }
-              disabled={loading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner le type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Sac">Sac</SelectItem>
-                <SelectItem value="Demi sac">Demi sac</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sku">SKU / Code</Label>
+              <Input
+                id="sku"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value.toUpperCase() })}
+                placeholder="RIZ-001"
+                required
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type">Type</Label>
+              <Select
+                value={formData.type}
+                onValueChange={(value: ProductType) => setFormData({ ...formData, type: value })}
+                disabled={loading}
+              >
+                <SelectTrigger id="type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sac">Sac</SelectItem>
+                  <SelectItem value="demi_sac">Demi-sac</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="qty">Quantité en stock</Label>
-            <Input
-              id="qty"
-              type="number"
-              min="0"
-              value={formData.qty}
-              onChange={(e) => setFormData({ ...formData, qty: parseInt(e.target.value) || 0 })}
-              required
-              disabled={loading}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Quantité en stock</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min="0"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: Number.parseInt(e.target.value) || 0 })}
+                required
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="min_stock">Stock minimum</Label>
+              <Input
+                id="min_stock"
+                type="number"
+                min="0"
+                value={formData.min_stock}
+                onChange={(e) => setFormData({ ...formData, min_stock: Number.parseInt(e.target.value) || 0 })}
+                required
+                disabled={loading}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -132,8 +165,9 @@ export function ProductForm({ open, onOpenChange, product, onSubmit }: ProductFo
               id="price"
               type="number"
               min="0"
+              step="0.01"
               value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: parseInt(e.target.value) || 0 })}
+              onChange={(e) => setFormData({ ...formData, price: Number.parseFloat(e.target.value) || 0 })}
               required
               disabled={loading || (!isAdmin && !!product)}
             />
@@ -147,10 +181,12 @@ export function ProductForm({ open, onOpenChange, product, onSubmit }: ProductFo
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {product ? 'Modification...' : 'Ajout...'}
+                  {product ? "Modification..." : "Ajout..."}
                 </>
+              ) : product ? (
+                "Modifier"
               ) : (
-                product ? 'Modifier' : 'Ajouter'
+                "Ajouter"
               )}
             </Button>
           </DialogFooter>

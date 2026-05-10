@@ -1,7 +1,7 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
+import { useState } from "react"
+import { useAuth } from "@/contexts/AuthContext"
 import {
   Table,
   TableBody,
@@ -9,18 +9,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Progress } from '@/components/ui/progress'
+} from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,28 +30,29 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { MoreHorizontal, Pencil, Trash2, CreditCard, Phone, Search } from 'lucide-react'
-import type { Client } from '@/types'
+} from "@/components/ui/alert-dialog"
+import { MoreHorizontal, Pencil, Trash2, CreditCard, Phone, Search, Lock, Unlock } from "lucide-react"
+import type { Client } from "@/types"
 
 interface ClientTableProps {
   clients: Client[]
   onEdit: (client: Client) => void
   onDelete: (id: string) => Promise<void>
   onPayment: (client: Client) => void
+  onToggleBlock: (id: string, isBlocked: boolean) => Promise<void>
 }
 
-export function ClientTable({ clients, onEdit, onDelete, onPayment }: ClientTableProps) {
+export function ClientTable({ clients, onEdit, onDelete, onPayment, onToggleBlock }: ClientTableProps) {
   const { isAdmin } = useAuth()
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState("")
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const filteredClients = clients.filter((client) => {
     const searchLower = search.toLowerCase()
     return (
       client.name.toLowerCase().includes(searchLower) ||
-      client.phone1.includes(search) ||
-      (client.phone2 && client.phone2.includes(search))
+      (client.phone && client.phone.includes(search)) ||
+      (client.email && client.email.toLowerCase().includes(searchLower))
     )
   })
 
@@ -63,37 +64,35 @@ export function ClientTable({ clients, onEdit, onDelete, onPayment }: ClientTabl
   }
 
   const getCreditStatus = (client: Client) => {
-    if (client.creditLimit === 0) return { label: 'Sans crédit', variant: 'secondary' as const }
-    
-    const percentage = (client.creditBalance / client.creditLimit) * 100
-    if (percentage >= 100) return { label: 'Bloqué', variant: 'destructive' as const }
-    if (percentage >= 80) return { label: 'Limite proche', variant: 'default' as const }
-    return { label: 'OK', variant: 'secondary' as const }
+    if (client.is_blocked) return { label: "Bloqué", variant: "destructive" as const }
+    if (Number(client.credit_limit) === 0) return { label: "Sans crédit", variant: "secondary" as const }
+    const percentage = (Number(client.current_balance) / Number(client.credit_limit)) * 100
+    if (percentage >= 100) return { label: "Limite atteinte", variant: "destructive" as const }
+    if (percentage >= 80) return { label: "Limite proche", variant: "default" as const }
+    return { label: "OK", variant: "secondary" as const }
   }
 
   return (
     <div className="space-y-4">
-      {/* Search */}
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Rechercher par nom ou téléphone..."
+          placeholder="Rechercher par nom, téléphone ou email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
         />
       </div>
 
-      {/* Table */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Client</TableHead>
-              <TableHead>Téléphone</TableHead>
-              <TableHead className="text-right">Solde (FCFA)</TableHead>
+              <TableHead>Contact</TableHead>
+              <TableHead className="text-right">Solde dû (FCFA)</TableHead>
               <TableHead className="text-right">Plafond (FCFA)</TableHead>
-              <TableHead>Statut crédit</TableHead>
+              <TableHead>Statut</TableHead>
               <TableHead className="w-[100px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -107,44 +106,43 @@ export function ClientTable({ clients, onEdit, onDelete, onPayment }: ClientTabl
             ) : (
               filteredClients.map((client) => {
                 const status = getCreditStatus(client)
-                const creditPercentage = client.creditLimit > 0 
-                  ? Math.min((client.creditBalance / client.creditLimit) * 100, 100)
-                  : 0
+                const balance = Number(client.current_balance)
+                const limit = Number(client.credit_limit)
+                const creditPercentage = limit > 0 ? Math.min((balance / limit) * 100, 100) : 0
 
                 return (
                   <TableRow key={client.id}>
-                    <TableCell className="font-medium">{client.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {client.is_blocked && <Lock className="h-3 w-3 text-destructive" />}
+                        {client.name}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3" />
-                          {client.phone1}
-                        </div>
-                        {client.phone2 && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        {client.phone && (
+                          <div className="flex items-center gap-1 text-sm">
                             <Phone className="h-3 w-3" />
-                            {client.phone2}
+                            {client.phone}
+                          </div>
+                        )}
+                        {client.email && (
+                          <div className="text-xs text-muted-foreground truncate max-w-[180px]">
+                            {client.email}
                           </div>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className={client.creditBalance > 0 ? 'text-destructive font-medium' : ''}>
-                        {client.creditBalance.toLocaleString('fr-FR')}
+                      <span className={balance > 0 ? "text-destructive font-medium" : ""}>
+                        {balance.toLocaleString("fr-FR")}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right">
-                      {client.creditLimit.toLocaleString('fr-FR')}
-                    </TableCell>
+                    <TableCell className="text-right">{limit.toLocaleString("fr-FR")}</TableCell>
                     <TableCell>
                       <div className="space-y-2">
                         <Badge variant={status.variant}>{status.label}</Badge>
-                        {client.creditLimit > 0 && (
-                          <Progress 
-                            value={creditPercentage} 
-                            className="h-1.5"
-                          />
-                        )}
+                        {limit > 0 && <Progress value={creditPercentage} className="h-1.5" />}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -156,7 +154,7 @@ export function ClientTable({ clients, onEdit, onDelete, onPayment }: ClientTabl
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {client.creditBalance > 0 && (
+                          {balance > 0 && (
                             <>
                               <DropdownMenuItem onClick={() => onPayment(client)}>
                                 <CreditCard className="mr-2 h-4 w-4" />
@@ -170,7 +168,22 @@ export function ClientTable({ clients, onEdit, onDelete, onPayment }: ClientTabl
                             Modifier
                           </DropdownMenuItem>
                           {isAdmin && (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem onClick={() => onToggleBlock(client.id, !client.is_blocked)}>
+                              {client.is_blocked ? (
+                                <>
+                                  <Unlock className="mr-2 h-4 w-4" />
+                                  Débloquer
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="mr-2 h-4 w-4" />
+                                  Bloquer
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          )}
+                          {isAdmin && (
+                            <DropdownMenuItem
                               onClick={() => setDeleteId(client.id)}
                               className="text-destructive"
                             >
@@ -189,7 +202,6 @@ export function ClientTable({ clients, onEdit, onDelete, onPayment }: ClientTabl
         </Table>
       </div>
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -200,7 +212,10 @@ export function ClientTable({ clients, onEdit, onDelete, onPayment }: ClientTabl
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground">
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground"
+            >
               Supprimer
             </AlertDialogAction>
           </AlertDialogFooter>

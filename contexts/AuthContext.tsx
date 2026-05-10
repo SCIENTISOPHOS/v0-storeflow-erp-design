@@ -1,23 +1,17 @@
-'use client'
+"use client"
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { 
-  User as FirebaseUser,
-  signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  createUserWithEmailAndPassword
-} from 'firebase/auth'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { auth, db } from '@/lib/firebase'
-import type { User, UserRole } from '@/types'
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import type { User as SupabaseUser } from "@supabase/supabase-js"
+import type { UserProfile, UserRole } from "@/types"
 
 interface AuthContextType {
-  user: User | null
-  firebaseUser: FirebaseUser | null
+  user: SupabaseUser | null
+  profile: UserProfile | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, name: string, role: UserRole) => Promise<void>
+  signUp: (email: string, password: string, fullName: string, role: UserRole) => Promise<void>
   signOut: () => Promise<void>
   isAdmin: boolean
 }
@@ -25,73 +19,81 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null)
+  const [user, setUser] = useState<SupabaseUser | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setFirebaseUser(firebaseUser)
-      
-      if (firebaseUser) {
-        // Fetch user data from Firestore
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid))
-        
-        if (userDoc.exists()) {
-          const userData = userDoc.data()
-          setUser({
-            id: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            name: userData.name,
-            role: userData.role,
-            createdAt: userData.createdAt?.toDate() || new Date(),
-          })
-        } else {
-          setUser(null)
-        }
-      } else {
-        setUser(null)
+    const fetchProfile = async (userId: string) => {
+      const { data } = await supabase.from("profiles").select("*").eq("id", userId).single()
+      if (data) setProfile(data as UserProfile)
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        fetchProfile(session.user.id)
       }
-      
       setLoading(false)
     })
 
-    return () => unsubscribe()
-  }, [])
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        await fetchProfile(session.user.id)
+      } else {
+        setProfile(null)
+      }
+      setLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [supabase])
 
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+    router.push("/dashboard")
+    router.refresh()
   }
 
-  const signUp = async (email: string, password: string, name: string, role: UserRole) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-    
-    // Create user document in Firestore
-    await setDoc(doc(db, 'users', userCredential.user.uid), {
+  const signUp = async (email: string, password: string, fullName: string, role: UserRole) => {
+    const { error } = await supabase.auth.signUp({
       email,
-      name,
-      role,
-      createdAt: new Date(),
+      password,
+      options: {
+        emailRedirectTo:
+          process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/auth/callback`,
+        data: { full_name: fullName, role },
+      },
     })
+    if (error) throw error
   }
 
   const signOut = async () => {
-    await firebaseSignOut(auth)
+    await supabase.auth.signOut()
     setUser(null)
+    setProfile(null)
+    router.push("/login")
+    router.refresh()
   }
 
-  const isAdmin = user?.role === 'admin'
-
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      firebaseUser, 
-      loading, 
-      signIn, 
-      signUp, 
-      signOut,
-      isAdmin 
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        isAdmin: profile?.role === "admin",
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
@@ -100,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error("useAuth must be used within an AuthProvider")
   }
   return context
 }

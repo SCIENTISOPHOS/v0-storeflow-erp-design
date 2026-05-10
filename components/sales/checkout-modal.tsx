@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -11,102 +11,85 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Separator } from '@/components/ui/separator'
-import { Loader2, AlertCircle, User, Banknote, CreditCard, Search } from 'lucide-react'
-import type { CartItem, Client, PaymentType } from '@/types'
+} from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Separator } from "@/components/ui/separator"
+import { Loader2, AlertCircle, User, Banknote, CreditCard, Search } from "lucide-react"
+import type { CartItem, Client, PaymentMethod } from "@/types"
 
 interface CheckoutModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   cart: CartItem[]
   clients: Client[]
-  onCheckout: (paymentType: PaymentType, client: Client | null) => Promise<void>
+  onCheckout: (paymentMethod: PaymentMethod, client: Client | null) => Promise<void>
 }
 
-export function CheckoutModal({
-  open,
-  onOpenChange,
-  cart,
-  clients,
-  onCheckout,
-}: CheckoutModalProps) {
+export function CheckoutModal({ open, onOpenChange, cart, clients, onCheckout }: CheckoutModalProps) {
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [paymentType, setPaymentType] = useState<PaymentType>('Espèces')
-  const [clientType, setClientType] = useState<'anonymous' | 'registered'>('anonymous')
-  const [selectedClientId, setSelectedClientId] = useState<string>('')
-  const [clientSearch, setClientSearch] = useState('')
+  const [error, setError] = useState("")
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
+  const [clientType, setClientType] = useState<"anonymous" | "registered">("anonymous")
+  const [selectedClientId, setSelectedClientId] = useState<string>("")
+  const [clientSearch, setClientSearch] = useState("")
 
-  const total = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
-  
-  const selectedClient = clients.find(c => c.id === selectedClientId) || null
+  const total = cart.reduce((acc, item) => acc + Number(item.product.price) * item.quantity, 0)
 
-  const filteredClients = clients.filter(client =>
-    client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-    client.phone1.includes(clientSearch)
-  )
+  const selectedClient = clients.find((c) => c.id === selectedClientId) || null
 
-  // Check if credit is allowed
+  const filteredClients = clients
+    .filter((c) => !c.is_blocked)
+    .filter(
+      (client) =>
+        client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+        (client.phone && client.phone.includes(clientSearch)),
+    )
+
   const canUseCredit = () => {
-    if (clientType === 'anonymous') return false
+    if (clientType === "anonymous") return false
     if (!selectedClient) return false
-    
-    const newBalance = selectedClient.creditBalance + total
-    return newBalance <= selectedClient.creditLimit
+    if (selectedClient.is_blocked) return false
+    const newBalance = Number(selectedClient.current_balance) + total
+    return newBalance <= Number(selectedClient.credit_limit)
   }
 
   const getCreditMessage = () => {
-    if (clientType === 'anonymous') {
-      return 'Le crédit est interdit pour les ventes anonymes'
+    if (clientType === "anonymous") return "Le crédit est interdit pour les ventes anonymes"
+    if (!selectedClient) return "Sélectionnez un client pour activer le crédit"
+    if (selectedClient.is_blocked) return "Ce client est bloqué"
+    const newBalance = Number(selectedClient.current_balance) + total
+    const limit = Number(selectedClient.credit_limit)
+    if (newBalance > limit) {
+      return `Crédit refusé: nouveau solde (${newBalance.toLocaleString("fr-FR")}) dépasserait le plafond (${limit.toLocaleString("fr-FR")})`
     }
-    if (!selectedClient) {
-      return 'Sélectionnez un client pour activer le crédit'
-    }
-    
-    const newBalance = selectedClient.creditBalance + total
-    if (newBalance > selectedClient.creditLimit) {
-      return `Crédit refusé: Le nouveau solde (${newBalance.toLocaleString('fr-FR')} FCFA) dépasserait le plafond de ${selectedClient.creditLimit.toLocaleString('fr-FR')} FCFA`
-    }
-    
     return null
   }
 
   const handleSubmit = async () => {
-    setError('')
+    setError("")
     setLoading(true)
-
     try {
-      const client = clientType === 'registered' ? selectedClient : null
-      await onCheckout(paymentType, client)
-      
-      // Reset form
-      setPaymentType('Espèces')
-      setClientType('anonymous')
-      setSelectedClientId('')
-      setClientSearch('')
+      const client = clientType === "registered" ? selectedClient : null
+      await onCheckout(paymentMethod, client)
+      setPaymentMethod("cash")
+      setClientType("anonymous")
+      setSelectedClientId("")
+      setClientSearch("")
       onOpenChange(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue')
+      setError(err instanceof Error ? err.message : "Une erreur est survenue")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleClientTypeChange = (value: 'anonymous' | 'registered') => {
+  const handleClientTypeChange = (value: "anonymous" | "registered") => {
     setClientType(value)
-    if (value === 'anonymous') {
-      setPaymentType('Espèces')
-      setSelectedClientId('')
+    if (value === "anonymous") {
+      setPaymentMethod("cash")
+      setSelectedClientId("")
     }
   }
 
@@ -116,7 +99,7 @@ export function CheckoutModal({
         <DialogHeader>
           <DialogTitle>Finaliser la vente</DialogTitle>
           <DialogDescription>
-            Total: <strong>{total.toLocaleString('fr-FR')} FCFA</strong> | 
+            Total: <strong>{total.toLocaleString("fr-FR")} FCFA</strong> ·{" "}
             {cart.reduce((acc, item) => acc + item.quantity, 0)} article(s)
           </DialogDescription>
         </DialogHeader>
@@ -129,12 +112,11 @@ export function CheckoutModal({
             </Alert>
           )}
 
-          {/* Client Selection */}
           <div className="space-y-3">
             <Label>Type de client</Label>
             <RadioGroup
               value={clientType}
-              onValueChange={(v) => handleClientTypeChange(v as 'anonymous' | 'registered')}
+              onValueChange={(v) => handleClientTypeChange(v as "anonymous" | "registered")}
               className="flex gap-4"
             >
               <div className="flex items-center space-x-2">
@@ -154,7 +136,7 @@ export function CheckoutModal({
             </RadioGroup>
           </div>
 
-          {clientType === 'registered' && (
+          {clientType === "registered" && (
             <div className="space-y-3">
               <Label>Sélectionner le client</Label>
               <div className="relative">
@@ -175,9 +157,9 @@ export function CheckoutModal({
                     <SelectItem key={client.id} value={client.id}>
                       <div className="flex items-center gap-2">
                         <span>{client.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({client.phone1})
-                        </span>
+                        {client.phone && (
+                          <span className="text-xs text-muted-foreground">({client.phone})</span>
+                        )}
                       </div>
                     </SelectItem>
                   ))}
@@ -185,21 +167,24 @@ export function CheckoutModal({
               </Select>
 
               {selectedClient && (
-                <div className="p-3 bg-muted rounded-lg text-sm">
+                <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Solde actuel:</span>
-                    <span className={selectedClient.creditBalance > 0 ? 'text-destructive font-medium' : ''}>
-                      {selectedClient.creditBalance.toLocaleString('fr-FR')} FCFA
+                    <span className={Number(selectedClient.current_balance) > 0 ? "text-destructive font-medium" : ""}>
+                      {Number(selectedClient.current_balance).toLocaleString("fr-FR")} FCFA
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Plafond:</span>
-                    <span>{selectedClient.creditLimit.toLocaleString('fr-FR')} FCFA</span>
+                    <span>{Number(selectedClient.credit_limit).toLocaleString("fr-FR")} FCFA</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Crédit disponible:</span>
                     <span className="font-medium">
-                      {(selectedClient.creditLimit - selectedClient.creditBalance).toLocaleString('fr-FR')} FCFA
+                      {(
+                        Number(selectedClient.credit_limit) - Number(selectedClient.current_balance)
+                      ).toLocaleString("fr-FR")}{" "}
+                      FCFA
                     </span>
                   </div>
                 </div>
@@ -209,30 +194,25 @@ export function CheckoutModal({
 
           <Separator />
 
-          {/* Payment Type */}
           <div className="space-y-3">
             <Label>Mode de paiement</Label>
             <RadioGroup
-              value={paymentType}
-              onValueChange={(v) => setPaymentType(v as PaymentType)}
+              value={paymentMethod}
+              onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
               className="flex gap-4"
             >
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="Espèces" id="cash" />
+                <RadioGroupItem value="cash" id="cash" />
                 <Label htmlFor="cash" className="cursor-pointer flex items-center gap-2">
                   <Banknote className="h-4 w-4" />
                   Espèces
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem 
-                  value="Crédit" 
-                  id="credit" 
-                  disabled={!canUseCredit()}
-                />
-                <Label 
-                  htmlFor="credit" 
-                  className={`cursor-pointer flex items-center gap-2 ${!canUseCredit() ? 'text-muted-foreground' : ''}`}
+                <RadioGroupItem value="credit" id="credit" disabled={!canUseCredit()} />
+                <Label
+                  htmlFor="credit"
+                  className={`cursor-pointer flex items-center gap-2 ${!canUseCredit() ? "text-muted-foreground" : ""}`}
                 >
                   <CreditCard className="h-4 w-4" />
                   Crédit
@@ -241,24 +221,23 @@ export function CheckoutModal({
             </RadioGroup>
 
             {getCreditMessage() && (
-              <Alert variant={paymentType === 'Crédit' ? 'destructive' : 'default'}>
+              <Alert variant={paymentMethod === "credit" ? "destructive" : "default"}>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{getCreditMessage()}</AlertDescription>
               </Alert>
             )}
           </div>
 
-          {/* Summary */}
-          <div className="p-4 bg-primary/5 rounded-lg">
+          <div className="p-4 bg-primary/5 rounded-lg space-y-1">
             <div className="flex justify-between text-lg font-bold">
               <span>Total à payer</span>
-              <span>{total.toLocaleString('fr-FR')} FCFA</span>
+              <span>{total.toLocaleString("fr-FR")} FCFA</span>
             </div>
-            <div className="flex justify-between text-sm text-muted-foreground mt-1">
+            <div className="flex justify-between text-sm text-muted-foreground">
               <span>Mode</span>
-              <span>{paymentType}</span>
+              <span>{paymentMethod === "cash" ? "Espèces" : "Crédit"}</span>
             </div>
-            {clientType === 'registered' && selectedClient && (
+            {clientType === "registered" && selectedClient && (
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Client</span>
                 <span>{selectedClient.name}</span>
@@ -271,9 +250,9 @@ export function CheckoutModal({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Annuler
           </Button>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={loading || (paymentType === 'Crédit' && !canUseCredit())}
+          <Button
+            onClick={handleSubmit}
+            disabled={loading || (paymentMethod === "credit" && !canUseCredit()) || (clientType === "registered" && !selectedClient)}
           >
             {loading ? (
               <>
@@ -281,7 +260,7 @@ export function CheckoutModal({
                 Traitement...
               </>
             ) : (
-              'Confirmer la vente'
+              "Confirmer la vente"
             )}
           </Button>
         </DialogFooter>

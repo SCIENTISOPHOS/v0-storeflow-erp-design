@@ -1,22 +1,18 @@
-'use client'
+"use client"
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '@/contexts/AuthContext'
-import { DashboardSidebar } from '@/components/dashboard/sidebar'
-import { Loader2 } from 'lucide-react'
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
+import { DashboardSidebar } from "@/components/dashboard/sidebar"
+import { Loader2 } from "lucide-react"
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/login')
+      router.push("/login")
     }
   }, [user, loading, router])
 
@@ -31,16 +27,12 @@ export default function DashboardLayout({
     )
   }
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
   return (
     <div className="flex min-h-screen bg-background">
       <DashboardSidebar />
-      <main className="flex-1 p-6 overflow-auto">
-        {children}
-      </main>
+      <main className="flex-1 p-6 overflow-auto">{children}</main>
     </div>
   )
 }

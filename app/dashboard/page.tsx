@@ -1,169 +1,114 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { DashboardHeader } from '@/components/dashboard/header'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { 
-  Package, 
-  Users, 
-  ShoppingCart, 
+import { useProducts } from "@/hooks/useProducts"
+import { useClients } from "@/hooks/useClients"
+import { useSales } from "@/hooks/useSales"
+import { DashboardHeader } from "@/components/dashboard/header"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Package,
+  Users,
+  ShoppingCart,
   AlertTriangle,
   TrendingUp,
-  CreditCard
-} from 'lucide-react'
-import type { Product, Client, Sale, DashboardStats } from '@/types'
+  CreditCard,
+  Loader2,
+} from "lucide-react"
+import Link from "next/link"
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    salesToday: 0,
-    salesAmount: 0,
-    totalProducts: 0,
-    lowStockProducts: 0,
-    totalClients: 0,
-    totalDebt: 0,
-  })
-  const [loading, setLoading] = useState(true)
+  const { products, loading: productsLoading } = useProducts()
+  const { clients, loading: clientsLoading } = useClients()
+  const { getTodaySales, getTodayTotal, loading: salesLoading } = useSales()
 
-  useEffect(() => {
-    // Get start of today
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayTimestamp = Timestamp.fromDate(today)
+  const loading = productsLoading || clientsLoading || salesLoading
 
-    // Products listener
-    const productsUnsubscribe = onSnapshot(
-      collection(db, 'products'),
-      (snapshot) => {
-        const products = snapshot.docs.map(doc => doc.data() as Product)
-        setStats(prev => ({
-          ...prev,
-          totalProducts: products.reduce((acc, p) => acc + p.qty, 0),
-          lowStockProducts: products.filter(p => p.qty < 5).length,
-        }))
-      }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     )
+  }
 
-    // Clients listener
-    const clientsUnsubscribe = onSnapshot(
-      collection(db, 'clients'),
-      (snapshot) => {
-        const clients = snapshot.docs.map(doc => doc.data() as Client)
-        setStats(prev => ({
-          ...prev,
-          totalClients: clients.length,
-          totalDebt: clients.reduce((acc, c) => acc + c.creditBalance, 0),
-        }))
-      }
-    )
-
-    // Sales today listener
-    const salesUnsubscribe = onSnapshot(
-      query(
-        collection(db, 'sales'),
-        where('timestamp', '>=', todayTimestamp)
-      ),
-      (snapshot) => {
-        const sales = snapshot.docs.map(doc => doc.data() as Sale)
-        setStats(prev => ({
-          ...prev,
-          salesToday: sales.length,
-          salesAmount: sales.reduce((acc, s) => acc + s.totalAmount, 0),
-        }))
-        setLoading(false)
-      }
-    )
-
-    return () => {
-      productsUnsubscribe()
-      clientsUnsubscribe()
-      salesUnsubscribe()
-    }
-  }, [])
+  const todaySales = getTodaySales()
+  const todayTotal = getTodayTotal()
+  const totalUnits = products.reduce((acc, p) => acc + p.quantity, 0)
+  const lowStockCount = products.filter((p) => p.quantity <= p.min_stock).length
+  const totalDebt = clients.reduce((acc, c) => acc + Number(c.current_balance), 0)
 
   const statCards = [
     {
       title: "Ventes aujourd'hui",
-      value: stats.salesToday,
-      description: `${stats.salesAmount.toLocaleString('fr-FR')} FCFA`,
+      value: todaySales.length,
+      description: `${todayTotal.toLocaleString("fr-FR")} FCFA`,
       icon: ShoppingCart,
-      color: 'text-green-600',
+      color: "text-primary",
     },
     {
-      title: 'Stock total',
-      value: stats.totalProducts,
-      description: 'unités en stock',
+      title: "Stock total",
+      value: totalUnits,
+      description: "unités en stock",
       icon: Package,
-      color: 'text-blue-600',
+      color: "text-foreground",
     },
     {
-      title: 'Stock faible',
-      value: stats.lowStockProducts,
-      description: 'produits < 5 unités',
+      title: "Stock faible",
+      value: lowStockCount,
+      description: "produits sous le minimum",
       icon: AlertTriangle,
-      color: stats.lowStockProducts > 0 ? 'text-orange-600' : 'text-muted-foreground',
+      color: lowStockCount > 0 ? "text-destructive" : "text-muted-foreground",
     },
     {
-      title: 'Clients',
-      value: stats.totalClients,
-      description: 'clients enregistrés',
+      title: "Clients",
+      value: clients.length,
+      description: "clients enregistrés",
       icon: Users,
-      color: 'text-indigo-600',
+      color: "text-foreground",
     },
     {
-      title: 'Créances totales',
-      value: `${stats.totalDebt.toLocaleString('fr-FR')}`,
-      description: 'FCFA à recouvrer',
+      title: "Créances totales",
+      value: `${totalDebt.toLocaleString("fr-FR")}`,
+      description: "FCFA à recouvrer",
       icon: CreditCard,
-      color: stats.totalDebt > 0 ? 'text-red-600' : 'text-muted-foreground',
+      color: totalDebt > 0 ? "text-destructive" : "text-muted-foreground",
     },
     {
-      title: 'Performance',
-      value: stats.salesToday > 0 ? '+' + stats.salesToday : '0',
-      description: 'transactions',
+      title: "Performance",
+      value: todaySales.length > 0 ? `+${todaySales.length}` : "0",
+      description: "transactions",
       icon: TrendingUp,
-      color: 'text-emerald-600',
+      color: "text-primary",
     },
   ]
 
   return (
     <div className="space-y-6">
-      <DashboardHeader 
-        title="Tableau de bord" 
-        description="Vue d'ensemble de votre activité"
-      />
+      <DashboardHeader title="Tableau de bord" description="Vue d'ensemble de votre activité" />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {statCards.map((stat) => (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
               <stat.icon className={`h-5 w-5 ${stat.color}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? '...' : stat.value}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stat.description}
-              </p>
+              <div className="text-2xl font-bold">{stat.value}</div>
+              <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Quick actions section */}
       <Card>
         <CardHeader>
           <CardTitle>Actions rapides</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
-            <a 
-              href="/dashboard/sales" 
+            <Link
+              href="/dashboard/sales"
               className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent transition-colors"
             >
               <ShoppingCart className="h-8 w-8 text-primary" />
@@ -171,9 +116,9 @@ export default function DashboardPage() {
                 <p className="font-medium">Nouvelle vente</p>
                 <p className="text-sm text-muted-foreground">Enregistrer une transaction</p>
               </div>
-            </a>
-            <a 
-              href="/dashboard/products" 
+            </Link>
+            <Link
+              href="/dashboard/products"
               className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent transition-colors"
             >
               <Package className="h-8 w-8 text-primary" />
@@ -181,9 +126,9 @@ export default function DashboardPage() {
                 <p className="font-medium">Gérer le stock</p>
                 <p className="text-sm text-muted-foreground">Voir et modifier les produits</p>
               </div>
-            </a>
-            <a 
-              href="/dashboard/clients" 
+            </Link>
+            <Link
+              href="/dashboard/clients"
               className="flex items-center gap-3 p-4 rounded-lg border border-border hover:bg-accent transition-colors"
             >
               <Users className="h-8 w-8 text-primary" />
@@ -191,7 +136,7 @@ export default function DashboardPage() {
                 <p className="font-medium">Gérer les clients</p>
                 <p className="text-sm text-muted-foreground">Voir les soldes et crédits</p>
               </div>
-            </a>
+            </Link>
           </div>
         </CardContent>
       </Card>

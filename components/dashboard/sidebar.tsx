@@ -1,72 +1,45 @@
-'use client'
+"use client"
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
-import { useAuth } from '@/contexts/AuthContext'
-import { 
-  LayoutDashboard, 
-  Package, 
-  Users, 
-  ShoppingCart, 
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
+import { useAuth } from "@/contexts/AuthContext"
+import {
+  LayoutDashboard,
+  Package,
+  Users,
+  ShoppingCart,
   FileText,
   LogOut,
   ChevronLeft,
-  ChevronRight
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { useState } from 'react'
+  ChevronRight,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useState } from "react"
+import { ROLE_LABELS } from "@/types"
 
 const navItems = [
-  {
-    title: 'Tableau de bord',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-    adminOnly: false,
-  },
-  {
-    title: 'Produits',
-    href: '/dashboard/products',
-    icon: Package,
-    adminOnly: false,
-  },
-  {
-    title: 'Clients',
-    href: '/dashboard/clients',
-    icon: Users,
-    adminOnly: false,
-  },
-  {
-    title: 'Point de vente',
-    href: '/dashboard/sales',
-    icon: ShoppingCart,
-    adminOnly: false,
-  },
-  {
-    title: 'Rapports',
-    href: '/dashboard/reports',
-    icon: FileText,
-    adminOnly: true,
-  },
+  { title: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard, adminOnly: false },
+  { title: "Produits", href: "/dashboard/products", icon: Package, adminOnly: false },
+  { title: "Clients", href: "/dashboard/clients", icon: Users, adminOnly: false },
+  { title: "Point de vente", href: "/dashboard/sales", icon: ShoppingCart, adminOnly: false },
+  { title: "Rapports", href: "/dashboard/reports", icon: FileText, adminOnly: true },
 ]
 
 export function DashboardSidebar() {
   const pathname = usePathname()
-  const { user, signOut, isAdmin } = useAuth()
+  const { profile, signOut, isAdmin } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
 
-  const filteredNavItems = navItems.filter(
-    (item) => !item.adminOnly || isAdmin
-  )
+  const filteredNavItems = navItems.filter((item) => !item.adminOnly || isAdmin)
 
   return (
-    <aside 
+    <aside
       className={cn(
         "flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300",
-        collapsed ? "w-16" : "w-64"
+        collapsed ? "w-16" : "w-64",
       )}
     >
-      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
         {!collapsed && (
           <div className="flex items-center gap-2">
@@ -80,15 +53,10 @@ export function DashboardSidebar() {
           onClick={() => setCollapsed(!collapsed)}
           className="h-8 w-8"
         >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 p-2 space-y-1">
         {filteredNavItems.map((item) => {
           const isActive = pathname === item.href
@@ -100,7 +68,7 @@ export function DashboardSidebar() {
                 "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                 isActive
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/50",
               )}
               title={collapsed ? item.title : undefined}
             >
@@ -111,16 +79,13 @@ export function DashboardSidebar() {
         })}
       </nav>
 
-      {/* User section */}
       <div className="p-4 border-t border-sidebar-border">
-        {!collapsed && user && (
+        {!collapsed && profile && (
           <div className="mb-3">
             <p className="text-sm font-medium text-sidebar-foreground truncate">
-              {user.name}
+              {profile.full_name ?? profile.email}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {user.role === 'admin' ? 'Administrateur' : 'Vendeur'}
-            </p>
+            <p className="text-xs text-muted-foreground">{ROLE_LABELS[profile.role]}</p>
           </div>
         )}
         <Button
@@ -129,9 +94,9 @@ export function DashboardSidebar() {
           onClick={signOut}
           className={cn(
             "text-sidebar-foreground hover:bg-sidebar-accent",
-            !collapsed && "w-full justify-start"
+            !collapsed && "w-full justify-start",
           )}
-          title={collapsed ? "Déconnexion" : undefined}
+          title={collapsed ? "Deconnexion" : undefined}
         >
           <LogOut className="h-4 w-4" />
           {!collapsed && <span className="ml-2">Déconnexion</span>}
