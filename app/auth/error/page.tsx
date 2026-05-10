@@ -18,16 +18,12 @@ export default function AuthErrorPage() {
         </CardHeader>
         <CardContent className="space-y-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Veuillez réessayer de vous connecter ou créer un nouveau compte.
+            Veuillez réessayer de vous connecter. Si le problème persiste, contactez votre
+            administrateur.
           </p>
-          <div className="flex flex-col gap-2">
-            <Button asChild className="w-full">
-              <Link href="/login">Se connecter</Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full bg-transparent">
-              <Link href="/sign-up">Créer un compte</Link>
-            </Button>
-          </div>
+          <Button asChild className="w-full">
+            <Link href="/login">Retour à la connexion</Link>
+          </Button>
         </CardContent>
       </Card>
     </div>

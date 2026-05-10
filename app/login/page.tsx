@@ -1,14 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Package, AlertCircle, Loader2 } from "lucide-react"
+import { Package, AlertCircle, Loader2, Lock } from "lucide-react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -98,12 +97,12 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Pas encore de compte?{" "}
-            <Link href="/sign-up" className="text-primary hover:underline font-medium">
-              Créer un compte
-            </Link>
-          </p>
+          <div className="mt-6 flex items-start gap-2 rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <p className="leading-relaxed">
+              {"L'inscription est désactivée. Seul un administrateur peut créer de nouveaux comptes utilisateurs."}
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

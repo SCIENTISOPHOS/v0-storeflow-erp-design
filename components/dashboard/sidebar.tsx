@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  UserCog,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
@@ -24,6 +25,7 @@ const navItems = [
   { title: "Clients", href: "/dashboard/clients", icon: Users, adminOnly: false },
   { title: "Point de vente", href: "/dashboard/sales", icon: ShoppingCart, adminOnly: false },
   { title: "Rapports", href: "/dashboard/reports", icon: FileText, adminOnly: true },
+  { title: "Utilisateurs", href: "/dashboard/users", icon: UserCog, adminOnly: true },
 ]
 
 export function DashboardSidebar() {

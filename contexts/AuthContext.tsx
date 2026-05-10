@@ -4,14 +4,13 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
-import type { UserProfile, UserRole } from "@/types"
+import type { UserProfile } from "@/types"
 
 interface AuthContextType {
   user: SupabaseUser | null
   profile: UserProfile | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, fullName: string, role: UserRole) => Promise<void>
   signOut: () => Promise<void>
   isAdmin: boolean
 }
@@ -61,19 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.refresh()
   }
 
-  const signUp = async (email: string, password: string, fullName: string, role: UserRole) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo:
-          process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/auth/callback`,
-        data: { full_name: fullName, role },
-      },
-    })
-    if (error) throw error
-  }
-
   const signOut = async () => {
     await supabase.auth.signOut()
     setUser(null)
@@ -89,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         signIn,
-        signUp,
         signOut,
         isAdmin: profile?.role === "admin",
       }}
