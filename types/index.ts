@@ -1,87 +1,105 @@
-// User types with RBAC
-export type UserRole = 'admin' | 'vendeur'
+// Database types matching Supabase schema (snake_case)
 
-export interface User {
+export type UserRole = "admin" | "vendeur"
+export type ProductType = "sac" | "demi_sac"
+export type PaymentMethod = "cash" | "credit"
+export type AuditAction =
+  | "CREATE"
+  | "UPDATE"
+  | "DELETE"
+  | "SALE"
+  | "PAYMENT"
+  | "STOCK_ADJUST"
+  | "LOGIN"
+  | "LOGOUT"
+
+export interface Profile {
   id: string
   email: string
-  name: string
+  full_name: string | null
   role: UserRole
-  createdAt: Date
+  created_at: string
+  updated_at: string
 }
-
-// Product types
-export type ProductType = 'Sac' | 'Demi sac'
 
 export interface Product {
   id: string
   name: string
   type: ProductType
-  qty: number
+  sku: string
   price: number
-  createdAt: Date
-  updatedAt: Date
+  quantity: number
+  min_stock: number
+  description: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
-// Client types
 export interface Client {
   id: string
   name: string
-  phone1: string
-  phone2?: string
-  creditBalance: number // Current debt
-  creditLimit: number // Maximum allowed credit
-  createdAt: Date
-  updatedAt: Date
-}
-
-// Sale types
-export type PaymentType = 'Espèces' | 'Crédit'
-
-export interface SaleItem {
-  productId: string
-  productName: string
-  productType: ProductType
-  quantity: number
-  unitPrice: number
-  totalPrice: number
+  phone: string | null
+  email: string | null
+  address: string | null
+  credit_limit: number
+  current_balance: number
+  is_blocked: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface Sale {
   id: string
-  clientId: string | null // null for anonymous sales
-  clientName: string // 'ANONYME' for anonymous sales
-  items: SaleItem[]
-  totalAmount: number
-  paymentType: PaymentType
-  userId: string // Who made the sale
-  userName: string
-  timestamp: Date
-  notes?: string
+  client_id: string | null
+  user_id: string
+  payment_method: PaymentMethod
+  subtotal: number
+  discount: number
+  total: number
+  amount_paid: number
+  notes: string | null
+  created_at: string
+  // Relations
+  client?: Client | null
+  user?: Profile | null
+  items?: SaleItem[]
 }
 
-// Audit log for tracking sensitive actions
-export type AuditAction = 
-  | 'SALE_CREATED'
-  | 'SALE_CANCELLED'
-  | 'PRODUCT_CREATED'
-  | 'PRODUCT_UPDATED'
-  | 'PRODUCT_DELETED'
-  | 'CLIENT_CREATED'
-  | 'CLIENT_UPDATED'
-  | 'CLIENT_DELETED'
-  | 'CREDIT_LIMIT_CHANGED'
-  | 'PRICE_CHANGED'
-  | 'PAYMENT_RECEIVED'
+export interface SaleItem {
+  id: string
+  sale_id: string
+  product_id: string
+  product_name: string
+  quantity: number
+  unit_price: number
+  total: number
+  created_at: string
+}
+
+export interface Payment {
+  id: string
+  client_id: string
+  user_id: string
+  amount: number
+  notes: string | null
+  created_at: string
+  client?: Client
+  user?: Profile
+}
 
 export interface AuditLog {
   id: string
+  user_id: string | null
   action: AuditAction
-  userId: string
-  userName: string
-  targetType: 'product' | 'client' | 'sale'
-  targetId: string
-  details: Record<string, unknown>
-  timestamp: Date
+  table_name: string
+  record_id: string | null
+  old_data: Record<string, unknown> | null
+  new_data: Record<string, unknown> | null
+  ip_address: string | null
+  created_at: string
+  user?: Profile | null
 }
 
 // Cart for POS
@@ -98,4 +116,20 @@ export interface DashboardStats {
   lowStockProducts: number
   totalClients: number
   totalDebt: number
+}
+
+// Helper labels for UI
+export const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
+  sac: "Sac",
+  demi_sac: "Demi-sac",
+}
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: "Espèces",
+  credit: "Crédit",
+}
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Administrateur",
+  vendeur: "Vendeur",
 }
